@@ -3,7 +3,6 @@ package com.gomes.photographer_manager.domain.photographer;
 import com.gomes.photographer_manager.domain.event.EventService;
 import com.gomes.photographer_manager.domain.event.response.EventResponse;
 import com.gomes.photographer_manager.domain.event.response.EventStatsResponse;
-import com.gomes.photographer_manager.domain.photographer.response.PublicPhotographerDTO;
 import com.gomes.photographer_manager.domain.photographer.team.TeamMemberRepository;
 import com.gomes.photographer_manager.domain.sale.SaleService;
 import com.gomes.photographer_manager.domain.sale.response.SaleResponse;
@@ -30,16 +29,13 @@ public class PhotographerController {
     private final EventService eventService;
     private final SaleService saleService;
     private final TeamMemberRepository teamMemberRepository;
-    private final PhotographerService photographerService;
 
     public PhotographerController(EventService eventService,
                                   SaleService saleService,
-                                  TeamMemberRepository teamMemberRepository,
-                                  PhotographerService photographerService) {
+                                  TeamMemberRepository teamMemberRepository) {
         this.eventService = eventService;
         this.saleService = saleService;
         this.teamMemberRepository = teamMemberRepository;
-        this.photographerService = photographerService;
     }
 
     @GetMapping("/dashboard")
