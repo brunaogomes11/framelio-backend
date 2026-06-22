@@ -4,7 +4,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -19,12 +18,12 @@ import java.util.UUID;
 public class LocalStorageService implements StorageService {
 
     private final String basePath;
-    private final String appBaseUrl;
+    private final BaseUrlResolver baseUrlResolver;
 
     public LocalStorageService(@Value("${storage.local.path:uploads/}") String basePath,
-                               @Value("${app.base-url:http://localhost:8080}") String appBaseUrl) {
+                               BaseUrlResolver baseUrlResolver) {
         this.basePath = basePath;
-        this.appBaseUrl = appBaseUrl;
+        this.baseUrlResolver = baseUrlResolver;
     }
 
     @Override
@@ -52,15 +51,7 @@ public class LocalStorageService implements StorageService {
 
     @Override
     public String getUrl(String key) {
-        return resolveBaseUrl() + "/files/" + key;
-    }
-
-    private String resolveBaseUrl() {
-        try {
-            return ServletUriComponentsBuilder.fromCurrentContextPath().build().toUriString();
-        } catch (IllegalStateException ex) {
-            return appBaseUrl;
-        }
+        return baseUrlResolver.resolve() + "/files/" + key;
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.gomes.photographer_manager.domain.store;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gomes.photographer_manager.config.email.EmailService;
+import com.gomes.photographer_manager.config.storage.BaseUrlResolver;
 import com.gomes.photographer_manager.config.storage.StorageService;
 import com.gomes.photographer_manager.domain.gallery.Gallery;
 import com.gomes.photographer_manager.domain.gallery.GalleryRepository;
@@ -57,6 +58,7 @@ public class StoreService {
     private final BalanceRepository balanceRepository;
     private final WithdrawalRepository withdrawalRepository;
     private final StorageService storageService;
+    private final BaseUrlResolver baseUrlResolver;
     private final EmailService emailService;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -79,7 +81,8 @@ public class StoreService {
     public StoreService(GalleryRepository galleryRepository, PhotoRepository photoRepository,
                         OrderRepository orderRepository, DownloadTokenRepository downloadTokenRepository,
                         BalanceRepository balanceRepository, WithdrawalRepository withdrawalRepository,
-                        StorageService storageService, EmailService emailService) {
+                        StorageService storageService, BaseUrlResolver baseUrlResolver,
+                        EmailService emailService) {
         this.galleryRepository = galleryRepository;
         this.photoRepository = photoRepository;
         this.orderRepository = orderRepository;
@@ -87,6 +90,7 @@ public class StoreService {
         this.balanceRepository = balanceRepository;
         this.withdrawalRepository = withdrawalRepository;
         this.storageService = storageService;
+        this.baseUrlResolver = baseUrlResolver;
         this.emailService = emailService;
         this.objectMapper = new ObjectMapper();
         this.httpClient = HttpClient.newHttpClient();
@@ -123,8 +127,9 @@ public class StoreService {
         Gallery gallery = galleryRepository.findByShareTokenAndStoreEnabledTrue(shareToken)
             .orElseThrow(() -> new EntityNotFoundException("Galeria nao encontrada ou nao disponivel para venda"));
         List<Photo> photos = photoRepository.findByGalleryIdOrderByDisplayOrderAsc(gallery.getId());
+        String baseUrl = baseUrlResolver.resolve();
         List<PublicPhotoResponse> photoResponses = photos.stream()
-            .map(p -> new PublicPhotoResponse(p.getId(), storageService.getUrl(p.getStoragePath())))
+            .map(p -> new PublicPhotoResponse(p.getId(), baseUrl + "/photos/" + p.getId() + "/view"))
             .collect(Collectors.toList());
         return new PublicGalleryResponse(gallery.getId(), gallery.getTitle(), gallery.getDescription(),
             gallery.getPricePerPhoto(), gallery.getPriceFullAlbum(), photoResponses);

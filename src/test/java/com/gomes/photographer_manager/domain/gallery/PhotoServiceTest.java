@@ -10,9 +10,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -52,7 +49,7 @@ class PhotoServiceTest {
 
     private static final byte[] ORIGINAL_BYTES = new byte[]{1, 2, 3};
     private static final byte[] WATERMARK_BYTES = new byte[]{4, 5, 6};
-    private static final byte[] WATERMARKED_BYTES = new byte[]{7, 8, 9};
+    private static final byte[] PREVIEW_BYTES = new byte[]{7, 8, 9};
 
     private Photo photo(String galleryId) {
         Photo photo = new Photo(galleryId, "galleries/g1/file.jpg", "caption", 0);
@@ -76,24 +73,46 @@ class PhotoServiceTest {
     }
 
     @Test
-    void viewServesWatermarkedWhenStoreEnabledAndAnonymous() throws IOException {
+    void viewServesStorePreviewWithCustomWatermarkWhenStoreEnabledAndAnonymous() throws IOException {
         Gallery gallery = gallery("owner1", true, false);
         when(photoRepository.findById("photo1")).thenReturn(Optional.of(photo("g1")));
         when(galleryService.getEntity("g1")).thenReturn(gallery);
 
         User photographer = new User();
+        photographer.setName("Studio Owner");
         photographer.setWatermarkPath("watermarks/owner1.png");
         when(userRepository.findById("owner1")).thenReturn(Optional.of(photographer));
 
         stubStorageReturns("galleries/g1/file.jpg", ORIGINAL_BYTES);
         stubStorageReturns("watermarks/owner1.png", WATERMARK_BYTES);
-        when(watermarkService.applyWatermark(ORIGINAL_BYTES, WATERMARK_BYTES, "galleries/g1/file.jpg"))
-                .thenReturn(WATERMARKED_BYTES);
+        when(watermarkService.applyStorePreview(ORIGINAL_BYTES, WATERMARK_BYTES, "Studio Owner"))
+                .thenReturn(PREVIEW_BYTES);
 
         PhotoView view = photoService.view("photo1", null);
 
-        assertArrayEquals(WATERMARKED_BYTES, view.content());
+        assertArrayEquals(PREVIEW_BYTES, view.content());
         assertEquals("image/jpeg", view.contentType());
+    }
+
+    @Test
+    void viewServesStorePreviewWithDefaultWatermarkWhenPhotographerHasNoCustomMark() throws IOException {
+        Gallery gallery = gallery("owner1", true, false);
+        when(photoRepository.findById("photo1")).thenReturn(Optional.of(photo("g1")));
+        when(galleryService.getEntity("g1")).thenReturn(gallery);
+
+        User photographer = new User();
+        photographer.setName("Studio Owner");
+        when(userRepository.findById("owner1")).thenReturn(Optional.of(photographer));
+
+        stubStorageReturns("galleries/g1/file.jpg", ORIGINAL_BYTES);
+        when(watermarkService.applyStorePreview(ORIGINAL_BYTES, null, "Studio Owner"))
+                .thenReturn(PREVIEW_BYTES);
+
+        PhotoView view = photoService.view("photo1", null);
+
+        assertArrayEquals(PREVIEW_BYTES, view.content());
+        assertEquals("image/jpeg", view.contentType());
+        verify(watermarkService, never()).applyWatermark(any(), any(), anyString());
     }
 
     @Test
@@ -128,27 +147,5 @@ class PhotoServiceTest {
         when(photoRepository.findById("missing")).thenReturn(Optional.empty());
 
         assertThrows(EntityNotFoundException.class, () -> photoService.view("missing", null));
-    }
-
-    @Test
-    void uploadReturnsUrlUsingCurrentRequestHost() throws IOException {
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setScheme("https");
-        request.setServerName("vps.example.com");
-        request.setServerPort(443);
-        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
-
-        try {
-            Gallery gallery = gallery("owner1", true, false);
-            when(galleryService.getEntity("g1")).thenReturn(gallery);
-            when(storageService.store(any(), anyString())).thenReturn("galleries/g1/file.jpg");
-            when(photoRepository.save(any(Photo.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-            PhotoResponse response = photoService.upload("g1", any(), "caption", "owner1");
-
-            assertEquals("https://vps.example.com/files/galleries/g1/file.jpg", response.url());
-        } finally {
-            RequestContextHolder.resetRequestAttributes();
-        }
     }
 }

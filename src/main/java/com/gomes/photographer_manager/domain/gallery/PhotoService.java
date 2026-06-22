@@ -119,22 +119,22 @@ public class PhotoService {
             return new PhotoView(photoBytes, contentType);
         }
 
+        // Preview da loja: baixa resolução + marca d'água (personalizada do fotógrafo ou padrão).
         User photographer = userRepository.findById(gallery.getPhotographerId())
                 .orElseThrow(() -> new EntityNotFoundException("Fotógrafo não encontrado"));
+
+        byte[] watermarkBytes = null;
         String watermarkKey = photographer.getWatermarkPath();
-        if (watermarkKey == null) {
-            return new PhotoView(photoBytes, contentType);
+        if (watermarkKey != null) {
+            try {
+                watermarkBytes = readKey(watermarkKey);
+            } catch (IOException ignored) {
+                watermarkBytes = null;
+            }
         }
 
-        byte[] watermarkBytes;
-        try {
-            watermarkBytes = readKey(watermarkKey);
-        } catch (IOException e) {
-            return new PhotoView(photoBytes, contentType);
-        }
-
-        byte[] watermarked = watermarkService.applyWatermark(photoBytes, watermarkBytes, photo.getStoragePath());
-        return new PhotoView(watermarked, contentType);
+        byte[] preview = watermarkService.applyStorePreview(photoBytes, watermarkBytes, photographer.getName());
+        return new PhotoView(preview, "image/jpeg");
     }
 
     private byte[] readKey(String key) throws IOException {
