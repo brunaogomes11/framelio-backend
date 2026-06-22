@@ -10,6 +10,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -125,5 +128,27 @@ class PhotoServiceTest {
         when(photoRepository.findById("missing")).thenReturn(Optional.empty());
 
         assertThrows(EntityNotFoundException.class, () -> photoService.view("missing", null));
+    }
+
+    @Test
+    void uploadReturnsUrlUsingCurrentRequestHost() throws IOException {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setScheme("https");
+        request.setServerName("vps.example.com");
+        request.setServerPort(443);
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        try {
+            Gallery gallery = gallery("owner1", true, false);
+            when(galleryService.getEntity("g1")).thenReturn(gallery);
+            when(storageService.store(any(), anyString())).thenReturn("galleries/g1/file.jpg");
+            when(photoRepository.save(any(Photo.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            PhotoResponse response = photoService.upload("g1", any(), "caption", "owner1");
+
+            assertEquals("https://vps.example.com/files/galleries/g1/file.jpg", response.url());
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
     }
 }
