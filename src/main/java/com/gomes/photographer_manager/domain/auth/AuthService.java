@@ -7,8 +7,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.gomes.photographer_manager.domain.auth.refresh.RefreshTokenService;
 import com.gomes.photographer_manager.domain.auth.request.LoginRequest;
-import com.gomes.photographer_manager.domain.auth.response.AuthResponse;
+import com.gomes.photographer_manager.domain.auth.response.AuthTokens;
 import com.gomes.photographer_manager.domain.usuario.User;
 import com.gomes.photographer_manager.domain.usuario.UserRepository;
 import com.gomes.photographer_manager.security.JwtService;
@@ -20,29 +21,51 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenService refreshTokenService;
 
     public AuthService(UserRepository userRepository,
                        JwtService jwtService,
                        AuthenticationManager authenticationManager,
-                       PasswordEncoder passwordEncoder) {
+                       PasswordEncoder passwordEncoder,
+                       RefreshTokenService refreshTokenService) {
         this.userRepository = userRepository;
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
         this.passwordEncoder = passwordEncoder;
+        this.refreshTokenService = refreshTokenService;
     }
 
-    public AuthResponse login(LoginRequest request) {
+    public AuthTokens login(LoginRequest request) {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.email(), request.password())
         );
 
         User user = userRepository.findByEmail(request.email()).orElseThrow();
-        String token = jwtService.generateToken(user);
-
-        return new AuthResponse(token);
+        return issueTokens(user);
     }
 
-    public AuthResponse register(RegisterRequest request) {
+    /** Rotaciona o refresh token e emite um novo par de tokens. */
+    public AuthTokens refresh(String rawRefreshToken) {
+        RefreshTokenService.RotationResult rotation = refreshTokenService.rotate(rawRefreshToken);
+        User user = userRepository.findById(rotation.userId()).orElseThrow();
+        String accessToken = jwtService.generateToken(user);
+        return new AuthTokens(accessToken, rotation.rawToken());
+    }
+
+    /** Revoga o refresh token (logout). */
+    public void logout(String rawRefreshToken) {
+        if (rawRefreshToken != null && !rawRefreshToken.isBlank()) {
+            refreshTokenService.revoke(rawRefreshToken);
+        }
+    }
+
+    private AuthTokens issueTokens(User user) {
+        String accessToken = jwtService.generateToken(user);
+        String refreshToken = refreshTokenService.issue(user.getId());
+        return new AuthTokens(accessToken, refreshToken);
+    }
+
+    public AuthTokens register(RegisterRequest request) {
         if (request.profile() == ProfileEnum.ADMIN) {
             throw new IllegalArgumentException("Perfil ADMIN não pode ser registrado.");
         }
@@ -56,7 +79,6 @@ public class AuthService {
         User user = new User(request, passwordEncoder.encode(request.password()));
         userRepository.save(user);
 
-        String token = jwtService.generateToken(user);
-        return new AuthResponse(token);
+        return issueTokens(user);
     }
 }

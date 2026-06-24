@@ -37,7 +37,10 @@ public record UserResponse(
         String bio,
 
         @Schema(description = "Categorias de serviço do usuário")
-        List<String> categories
+        List<String> categories,
+
+        @Schema(description = "URL da marca d'água do fotógrafo")
+        String watermarkPath
 ) {
     public UserResponse(User user) {
         this(
@@ -50,7 +53,8 @@ public record UserResponse(
                 user.getPhone(),
                 user.getProfilePhoto(),
                 user.getBio(),
-                user.getCategories()
+                user.getCategories(),
+                user.getWatermarkPath() != null ? "/files/" + user.getWatermarkPath() : null
         );
     }
 }
